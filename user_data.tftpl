@@ -1,0 +1,33 @@
+#!/bin/bash
+set -euxo pipefail
+
+export AWS_DEFAULT_REGION=${region}
+
+yum install -y unzip
+curl https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o awscliv2.zip
+unzip awscliv2.zip && ./aws/install
+
+until curl --fail http://169.254.169.254/latest/meta-data/iam/security-credentials/${ec2_role_name}; do
+    echo "Waiting for IAM role to be available..." && sleep 1
+done
+
+instance_id=$(cat /var/lib/cloud/data/instance-id)
+aws ec2 wait volume-available --volume-ids ${ebs_storage_id}
+aws ec2 attach-volume --volume-id ${ebs_storage_id} --instance-id "$instance_id" --device ${device_path}
+aws ec2 wait volume-in-use --volume-ids ${ebs_storage_id} --filters "Name=attachment.status,Values=attached"
+
+until [ -e ${device_path} ]; do
+    echo "Waiting for EBS volume to be attached..." && sleep 1
+done
+
+real_device_path=$(readlink -f ${device_path})
+if ! blkid "$real_device_path"; then
+    echo "No filesystem found on $real_device_path, formatting as ext4..."
+    mkfs -t ext4 ${device_path}
+fi
+
+mkdir -p ${mount_path}
+echo "${device_path} ${mount_path} ext4 defaults 0 2" | tee -a /etc/fstab
+mount -a
+
+echo ECS_CLUSTER=${cluster_name} > /etc/ecs/ecs.config
