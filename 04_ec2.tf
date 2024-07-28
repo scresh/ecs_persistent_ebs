@@ -1,8 +1,3 @@
-resource "aws_ebs_volume" "storage" {
-  availability_zone = aws_subnet.public_subnet.availability_zone
-  size              = 10
-}
-
 data "aws_ami" "linux" {
   most_recent = true
   owners      = ["amazon"]
@@ -24,17 +19,12 @@ resource "aws_launch_template" "launch_template" {
   instance_type = var.instance_type
   image_id      = data.aws_ami.linux.id
 
-
   vpc_security_group_ids = [aws_security_group.ec2_security_group.id]
   iam_instance_profile { arn = aws_iam_instance_profile.ec2_profile.arn }
 
   user_data = base64encode(templatefile("${path.module}/user_data.tftpl", {
-    ec2_role_name  = aws_iam_role.ec2_role.name
-    ebs_storage_id = aws_ebs_volume.storage.id
-    region         = var.region
-    cluster_name   = aws_ecs_cluster.cluster.name
-    device_path    = "/dev/sdh"
-    mount_path     = "/data"
+    region       = var.region
+    cluster_name = aws_ecs_cluster.cluster.name
   }))
 
 }

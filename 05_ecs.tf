@@ -40,8 +40,16 @@ resource "aws_ecs_task_definition" "task_definition" {
   )
 
   volume {
-    name      = "persistent_ebs"
-    host_path = "/data"
+    name = "persistent_ebs"
+    docker_volume_configuration {
+      scope         = "shared"
+      autoprovision = true
+      driver        = "rexray/ebs"
+      driver_opts = {
+        volumetype = "gp2"
+        size       = 10
+      }
+    }
   }
 }
 
